@@ -1,0 +1,39 @@
+# Dependencias
+node_modules/
+
+# Build
+dist/
+
+# Variables de entorno (nunca al repo)
+.env
+.env.test
+env.txt
+
+# Logs
+*.log
+npm-debug.log*
+
+# Datos de Postgres (si se usa bind-mount local)
+postgres-data/
+pgdata/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Coverage reports
+src/coverage/
+coverage/
+
+# NestJS
+.nest/
+
+# IDE
+.vscode/
+.idea/
+
+# Zip files de despliegue
+*.zip

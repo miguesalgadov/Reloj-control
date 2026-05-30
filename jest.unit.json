@@ -1,0 +1,20 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "src",
+  "testRegex": "\\.spec\\.ts$",
+  "transform": {
+    "^.+\\.ts$": ["ts-jest", {
+      "tsconfig": {
+        "module": "commonjs",
+        "strictNullChecks": true,
+        "noImplicitAny": true,
+        "esModuleInterop": true
+      }
+    }]
+  },
+  "testEnvironment": "node",
+  "collectCoverageFrom": ["jornada/evaluator/**/*.ts", "!jornada/evaluator/__tests__/**"],
+  "coverageThreshold": {
+    "global": { "lines": 90 }
+  }
+}
