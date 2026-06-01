@@ -7,6 +7,10 @@ import { MarcacionesModule } from './marcaciones/marcaciones.module';
 import { HealthModule } from './health/health.module';
 import { JornadaModule } from './jornada/jornada.module';
 import { ConfiguracionModule } from './configuracion/configuracion.module';
+import { UsuariosModule } from './usuarios/usuarios.module';
+import { CentrosModule } from './centros/centros.module';
+import { TrabajadoresModule } from './trabajadores/trabajadores.module';
+import { ContratosModule } from './contratos/contratos.module';
 
 @Module({
   imports: [
@@ -24,6 +28,10 @@ import { ConfiguracionModule } from './configuracion/configuracion.module';
     HealthModule,
     JornadaModule,
     ConfiguracionModule,
+    UsuariosModule,
+    CentrosModule,
+    TrabajadoresModule,
+    ContratosModule,
   ],
 })
 export class AppModule {}
