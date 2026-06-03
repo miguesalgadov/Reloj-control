@@ -5,10 +5,10 @@ import { format, parseISO, isToday, isYesterday } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { AuthGuard } from '@/components/auth/auth-guard';
 import { Header } from '@/components/shared/header';
+import { NavBottom } from '@/components/shared/nav-bottom';
 import { Spinner } from '@/components/shared/spinner';
 import { MarcacionItem } from '@/components/marcaje/marcacion-item';
 import { Button } from '@/components/ui/button';
-import { NavBottom } from '@/components/shared/nav-bottom';
 import { useMarcaciones } from '@/lib/queries/use-marcaciones';
 import type { MarcacionMia } from '@/lib/types';
 
@@ -45,32 +45,42 @@ export default function MarcacionesPage() {
 }
 
 function Contenido() {
-  const [offset, setOffset] = useState(0);
-  const [acumuladas, setAcumuladas] = useState<MarcacionMia[]>([]);
-  const { data, isLoading, isFetching } = useMarcaciones(offset, LIMIT);
+  const [paginas, setPaginas] = useState(1);
+  const offset = (paginas - 1) * LIMIT;
+  const { data: paginaActual, isLoading, isFetching } = useMarcaciones(offset, LIMIT);
 
-  if (data && data.data.length > 0) {
-    const nuevas = data.data.filter(m => !acumuladas.find(a => a.id === m.id));
-    if (nuevas.length > 0) setAcumuladas(prev => [...prev, ...nuevas]);
+  // Marcaciones acumuladas vía ref + render derivado
+  const [prevData, setPrevData] = useState<MarcacionMia[]>([]);
+  const marcaciones = [...prevData, ...(paginaActual?.data ?? []).filter(
+    m => !prevData.find(p => p.id === m.id)
+  )];
+
+  const hayMas = paginaActual ? offset + LIMIT < paginaActual.total : false;
+
+  function cargarMas() {
+    // Persist current page results before loading next
+    if (paginaActual?.data) {
+      setPrevData(d => [...d, ...paginaActual.data.filter(m => !d.find(p => p.id === m.id))]);
+    }
+    setPaginas(p => p + 1);
   }
 
-  const grupos = agruparPorDia(acumuladas);
+  const grupos = agruparPorDia(marcaciones);
   const diasOrdenados = [...grupos.keys()].sort((a, b) => b.localeCompare(a));
-  const hayMas = data ? offset + LIMIT < data.total : false;
 
   return (
     <div className="flex min-h-screen flex-col">
       <Header titulo="Mis Marcaciones" />
-
       <NavBottom />
+
       <main className="flex-1 space-y-4 p-4 pb-24">
-        {isLoading && acumuladas.length === 0 && (
+        {isLoading && marcaciones.length === 0 && (
           <div className="flex items-center justify-center py-12">
             <Spinner className="h-8 w-8" />
           </div>
         )}
 
-        {!isLoading && acumuladas.length === 0 && (
+        {!isLoading && marcaciones.length === 0 && (
           <p className="py-12 text-center text-sm text-slate-500">
             No tienes marcaciones registradas.
           </p>
@@ -93,7 +103,7 @@ function Contenido() {
           <Button
             variant="outline"
             className="w-full"
-            onClick={() => setOffset(o => o + LIMIT)}
+            onClick={cargarMas}
             disabled={isFetching}
           >
             {isFetching ? <Spinner className="mr-2" /> : null}

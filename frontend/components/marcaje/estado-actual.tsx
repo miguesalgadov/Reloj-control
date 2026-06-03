@@ -1,4 +1,4 @@
-import { CheckCircle, AlertCircle, Clock, XCircle } from 'lucide-react';
+import { CheckCircle, Clock, XCircle } from 'lucide-react';
 import type { ResultadoJornadaDia, TipoMarcacion } from '@/lib/types';
 
 export type AccionMarcaje = TipoMarcacion | null;
