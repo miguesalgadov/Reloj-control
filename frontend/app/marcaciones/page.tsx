@@ -8,6 +8,7 @@ import { Header } from '@/components/shared/header';
 import { Spinner } from '@/components/shared/spinner';
 import { MarcacionItem } from '@/components/marcaje/marcacion-item';
 import { Button } from '@/components/ui/button';
+import { NavBottom } from '@/components/shared/nav-bottom';
 import { useMarcaciones } from '@/lib/queries/use-marcaciones';
 import type { MarcacionMia } from '@/lib/types';
 
@@ -61,6 +62,7 @@ function Contenido() {
     <div className="flex min-h-screen flex-col">
       <Header titulo="Mis Marcaciones" />
 
+      <NavBottom />
       <main className="flex-1 space-y-4 p-4 pb-24">
         {isLoading && acumuladas.length === 0 && (
           <div className="flex items-center justify-center py-12">

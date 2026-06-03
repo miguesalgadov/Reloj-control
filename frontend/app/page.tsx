@@ -8,6 +8,7 @@ import { Spinner } from '@/components/shared/spinner';
 import { JornadaCard } from '@/components/marcaje/jornada-card';
 import { EstadoActual, derivarAccion } from '@/components/marcaje/estado-actual';
 import { BotonMarcar } from '@/components/marcaje/boton-marcar';
+import { NavBottom } from '@/components/shared/nav-bottom';
 import { usePerfil } from '@/lib/queries/use-perfil';
 import { useJornadaHoy } from '@/lib/queries/use-jornada-hoy';
 
@@ -32,6 +33,7 @@ function Contenido() {
     <div className="flex min-h-screen flex-col">
       <Header titulo="Inicio" nombre={nombre} />
 
+      <NavBottom />
       <main className="flex flex-1 flex-col gap-4 p-4 pb-24">
         <p className="text-sm font-medium capitalize text-slate-500">{hoy}</p>
 
