@@ -21,6 +21,11 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
+  app.enableCors({
+    origin: config.get<string>('FRONTEND_URL', 'http://localhost:3001'),
+    credentials: true,
+  });
+
   app.setGlobalPrefix('api');
 
   // Graceful shutdown: cierra el pool de DB cuando llega SIGTERM/SIGINT.
