@@ -26,9 +26,9 @@ con letra (A, B, C…) son el orden definido tras cerrar el bootstrap.
 
 ## Estado actual
 
-**Última actividad:** cierre del Paso B (CRUD del admin de empresa).
-**Próximo paso:** **Paso C** (endpoints de supervisor).
-**Tests vigentes:** 91 e2e + 80 unitarios + 5 SQL — todos verdes.
+**Última actividad:** cierre del Paso C (endpoints de supervisor).
+**Próximo paso:** **Paso D** (reportes mensuales).
+**Tests vigentes:** 109 e2e + 98 unitarios + 5 SQL — todos verdes.
 **Repositorio:** GitHub privado.
 **Plataforma BD:** Neon (Postgres serverless).
 
@@ -119,18 +119,19 @@ usuarios sin SQL manual.
 
 **Commit:** `a92ff7d`.
 
-### C — Endpoints de supervisor ⚪
+### C — Endpoints de supervisor 🟢
 
 Lectura agregada para que un `supervisor` pueda monitorear su gente:
 quién marcó hoy, quién no, atrasos del día, jornadas de la semana.
 
-**Alcance preliminar:**
-- `GET /supervision/dia/:fecha` — estado del día para todo el tenant.
-- `GET /supervision/trabajadores` — listado con últimas marcaciones.
-- `GET /supervision/alertas` — inasistencias presuntas, marcajes fuera
-  de geocerca, jornadas en curso sin colación.
+**Fecha de cierre:** 2026-06-03.
 
-**Tamaño estimado:** 1 sesión de Claude Code.
+**Artefactos:** módulo `src/supervision` (controller, service, repository,
+DTOs). Refactor de `JornadaService.evaluarSemanaParaTrabajador`.
+
+**Métricas:** 109 tests e2e + 98 tests unitarios — todos verdes.
+
+**Commit:** `dc5f949`.
 
 ### D — Reportes mensuales ⚪
 
