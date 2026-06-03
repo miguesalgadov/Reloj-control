@@ -29,11 +29,16 @@ export class JornadaService {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(lunesStr)) {
       throw new NotFoundException(`Formato de fecha inválido: ${lunesStr}`);
     }
+    return this.evaluarSemanaParaTrabajador(user.tenantId, user.trabajadorId!, lunesStr, db);
+  }
 
+  async evaluarSemanaParaTrabajador(
+    tenantId: string,
+    trabajadorId: string,
+    lunesStr: string,
+    db: PoolClient,
+  ): Promise<ResultadoSemana> {
     const ahora = new Date();
-    const tenantId = user.tenantId;
-    const trabajadorId = user.trabajadorId!;
-
     const config = await this.repo.getConfig(tenantId, db);
     const fechas = diasDeSemana(lunesStr);
     const domingoStr = fechas[6];

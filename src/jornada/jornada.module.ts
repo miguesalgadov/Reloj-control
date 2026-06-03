@@ -6,5 +6,6 @@ import { JornadaRepository } from './jornada.repository';
 @Module({
   controllers: [JornadaController],
   providers: [JornadaService, JornadaRepository],
+  exports: [JornadaService],
 })
 export class JornadaModule {}
