@@ -21,11 +21,6 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  app.enableCors({
-    origin: config.get<string>('FRONTEND_URL', 'http://localhost:3001'),
-    credentials: true,
-  });
-
   app.setGlobalPrefix('api');
 
   // Graceful shutdown: cierra el pool de DB cuando llega SIGTERM/SIGINT.
@@ -33,6 +28,11 @@ async function bootstrap(): Promise<void> {
 
   const config = app.get(ConfigService);
   const port = config.get<number>('PORT', 3000);
+
+  app.enableCors({
+    origin: config.get<string>('FRONTEND_URL', 'http://localhost:3001'),
+    credentials: true,
+  });
 
   await app.listen(port);
   Logger.log(`API escuchando en http://localhost:${port}/api`, 'Bootstrap');
