@@ -13,14 +13,10 @@ function parseTimestampLocal(ts: string): Date {
   return fromZonedTime(ts, TZ);
 }
 
-function inicioMesActual(): Date {
-  const hoy = new Date();
-  const añoMes = formatInTimeZone(hoy, TZ, 'yyyy-MM');
-  return fromZonedTime(`${añoMes}-01 00:00:00`, TZ);
-}
-
-function formatTrabajador(row: { trabajador_nombres: string; trabajador_apellido_paterno: string }) {
-  return `${row.trabajador_nombres} ${row.trabajador_apellido_paterno}`.trim();
+function esMesAnteriorEnSantiago(timestampUtc: Date): boolean {
+  const ahoraYearMonth = formatInTimeZone(new Date(), TZ, 'yyyy-MM');
+  const tsYearMonth = formatInTimeZone(timestampUtc, TZ, 'yyyy-MM');
+  return tsYearMonth < ahoraYearMonth;
 }
 
 @Injectable()
@@ -41,11 +37,10 @@ export class AjustesService {
     let timestampUtc: Date;
 
     if (dto.tipo_ajuste === 'anulacion') {
-      // Para anulaciones usamos now() como timestamp del ajuste (no hay timestamp de entrada)
       timestampUtc = new Date();
     } else {
       if (!tsStr) {
-        throw new BadRequestException('Se requiere timestamp_local para este tipo de ajuste.');
+        throw new BadRequestException('Se requiere timestamp para este tipo de ajuste.');
       }
       timestampUtc = parseTimestampLocal(tsStr);
     }
@@ -59,8 +54,7 @@ export class AjustesService {
 
     // ─── Validar plazo máximo ──────────────────────────────────────────────
     if (dto.tipo_ajuste !== 'anulacion') {
-      const diffMs = ahora.getTime() - timestampUtc.getTime();
-      const diffDias = diffMs / (1000 * 60 * 60 * 24);
+      const diffDias = (ahora.getTime() - timestampUtc.getTime()) / (1000 * 60 * 60 * 24);
       if (diffDias > MAX_DIAS_ATRAS) {
         throw new BadRequestException(`No se pueden ajustar marcaciones de más de ${MAX_DIAS_ATRAS} días atrás.`);
       }
@@ -68,8 +62,7 @@ export class AjustesService {
 
     // ─── Validar mes anterior con confirmación ─────────────────────────────
     if (dto.tipo_ajuste !== 'anulacion') {
-      const inicioMes = inicioMesActual();
-      if (timestampUtc < inicioMes && !dto.confirmacion_mes_cerrado) {
+      if (esMesAnteriorEnSantiago(timestampUtc) && !dto.confirmacion_mes_cerrado) {
         throw new BadRequestException('Marcación del mes anterior. Requiere confirmacion_mes_cerrado: true para proceder.');
       }
     }
@@ -81,7 +74,7 @@ export class AjustesService {
     }
 
     // ─── Validar marcación original (para correccion / anulacion) ─────────
-    let tipoMarcacionEfectivo = dto.tipo_marcacion ?? 'ajuste';
+    let tipoMarcacionRespuesta: string = dto.tipo_marcacion ?? 'ajuste';
     let marcacionOriginalTimestamp: Date | null = null;
 
     if (dto.marcacion_original_id) {
@@ -92,9 +85,19 @@ export class AjustesService {
       if (original.anulada) {
         throw new NotFoundException('Marcación original no encontrada o ya fue anulada.');
       }
-      tipoMarcacionEfectivo = original.tipo;
+      tipoMarcacionRespuesta = original.tipo;
       marcacionOriginalTimestamp = original.timestamp_utc;
     }
+
+    // ─── Para anulaciones, usar el timestamp de la marcación original ──────
+    if (dto.tipo_ajuste === 'anulacion' && marcacionOriginalTimestamp) {
+      timestampUtc = marcacionOriginalTimestamp;
+    }
+
+    // ─── Tipo a almacenar en DB ────────────────────────────────────────────
+    // creacion → tipo real (entrada, salida…) sin marcacion_original_id
+    // correccion / anulacion → tipo='ajuste' con marcacion_original_id
+    const tipoParaDB = dto.tipo_ajuste === 'creacion' ? dto.tipo_marcacion! : 'ajuste';
 
     // ─── Construir datos_ajuste ────────────────────────────────────────────
     const datosAjuste: Record<string, unknown> = {
@@ -107,16 +110,11 @@ export class AjustesService {
       datosAjuste['timestamp_corregido'] = timestampUtc.toISOString();
     }
 
-    // ─── Para anulaciones, usar el timestamp de la marcación original ──────
-    if (dto.tipo_ajuste === 'anulacion' && marcacionOriginalTimestamp) {
-      timestampUtc = marcacionOriginalTimestamp;
-    }
-
     // ─── Insertar ajuste ───────────────────────────────────────────────────
     const ajuste = await this.repo.crearAjuste(
       {
         trabajadorId: dto.trabajador_id,
-        tipoMarcacion: tipoMarcacionEfectivo,
+        tipoMarcacion: tipoParaDB,
         timestampUtc,
         latitud: dto.latitud ?? null,
         longitud: dto.longitud ?? null,
@@ -143,15 +141,17 @@ export class AjustesService {
       db,
     );
 
+    const adminNombre = await this.repo.findAdminNombre(user.sub, db);
+
     return {
       id: ajuste.id,
       tipo_ajuste: dto.tipo_ajuste,
       trabajador_id: dto.trabajador_id,
       marcacion_original_id: dto.marcacion_original_id ?? null,
-      tipo_marcacion: tipoMarcacionEfectivo,
+      tipo_marcacion: tipoMarcacionRespuesta,
       timestamp_local: dto.tipo_ajuste !== 'anulacion' ? tsStr : null,
       timestamp_utc: timestampUtc.toISOString(),
-      creado_por: { id: user.sub, nombre: `${user.sub}` },
+      creado_por: { id: user.sub, nombre: adminNombre },
       motivo: dto.motivo,
       created_at: ajuste.created_at,
     };

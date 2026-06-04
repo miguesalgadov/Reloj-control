@@ -25,7 +25,7 @@ export class CrearAjusteDto {
   @IsEnum(['entrada', 'salida', 'inicio_colacion', 'fin_colacion'])
   tipo_marcacion?: string;
 
-  @ValidateIf(o => o.tipo_ajuste === 'creacion' || o.tipo_ajuste === 'correccion')
+  @ValidateIf(o => o.tipo_ajuste === 'creacion')
   @IsDateString({}, { message: 'timestamp_local debe ser una fecha ISO válida (ej: 2026-06-01T08:07:00).' })
   timestamp_local?: string;
 

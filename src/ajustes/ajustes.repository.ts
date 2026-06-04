@@ -63,6 +63,14 @@ export class AjustesRepository {
     return rows[0].existe;
   }
 
+  async findAdminNombre(adminId: string, db: PoolClient): Promise<string> {
+    const { rows } = await db.query<{ nombre: string }>(
+      `SELECT (nombres || ' ' || apellidos) AS nombre FROM rc.usuarios WHERE id = $1::uuid`,
+      [adminId],
+    );
+    return rows[0]?.nombre ?? adminId;
+  }
+
   async crearAjuste(
     opts: {
       trabajadorId: string;
@@ -70,7 +78,6 @@ export class AjustesRepository {
       timestampUtc: Date;
       latitud?: number | null;
       longitud?: number | null;
-      centroTrabajoId?: string | null;
       marcacionOriginalId?: string | null;
       datosAjuste: object;
       adminId: string;
@@ -78,28 +85,26 @@ export class AjustesRepository {
     db: PoolClient,
   ): Promise<{ id: string; created_at: Date }> {
     const { rows } = await db.query<{ id: string; created_at: Date }>(
-      `INSERT INTO rc.marcaciones
-         (tenant_id, trabajador_id, tipo, timestamp_utc,
-          latitud, longitud, dentro_geocerca,
-          marcacion_original_id, datos_ajuste)
-       SELECT
-         rc.current_tenant_id(),
-         $1::uuid,
-         'ajuste',
-         $2::timestamptz,
-         $3::numeric,
-         $4::numeric,
-         NULL,
-         $5::uuid,
-         $6::jsonb
-       RETURNING id, created_at`,
+      `SELECT id, created_at
+         FROM rc.registrar_ajuste(
+           $1::rc.tipo_marcacion,
+           $2::uuid,
+           $3::timestamptz,
+           $4::jsonb,
+           $5::uuid,
+           $6::numeric,
+           $7::numeric,
+           $8::uuid
+         )`,
       [
+        opts.tipoMarcacion,
         opts.trabajadorId,
         opts.timestampUtc.toISOString(),
+        JSON.stringify(opts.datosAjuste),
+        opts.marcacionOriginalId ?? null,
         opts.latitud ?? null,
         opts.longitud ?? null,
-        opts.marcacionOriginalId ?? null,
-        JSON.stringify(opts.datosAjuste),
+        opts.adminId,
       ],
     );
     return rows[0];
@@ -121,7 +126,7 @@ export class AjustesRepository {
        )`,
       [
         opts.tenantId,
-        'ajuste_marcacion',
+        'marcacion_ajustada',
         'crear_ajuste',
         'usuario',
         opts.adminId,
