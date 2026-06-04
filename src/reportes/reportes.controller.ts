@@ -26,7 +26,7 @@ import { FiltrosReporteDto } from './dto/filtros-reporte.dto';
 export class ReportesController {
   constructor(private readonly service: ReportesService) {}
 
-  @Get('asistencia/:año/:mes')
+  @Get('asistencia/:anio/:mes')
   @Roles('admin_empresa', 'supervisor')
   async asistencia(
     @Param() params: ParamsReporteDto,
@@ -38,13 +38,13 @@ export class ReportesController {
     if (filtros.formato === 'xlsx') {
       const buf = await generarExcelAsistencia(datos);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="asistencia-${params.año}-${params.mes}.xlsx"`);
+      res.setHeader('Content-Disposition', `attachment; filename="asistencia-${params.anio}-${params.mes}.xlsx"`);
       return res.send(buf);
     }
     return res.status(HttpStatus.OK).json(datos);
   }
 
-  @Get('resumen-trabajadores/:año/:mes')
+  @Get('resumen-trabajadores/:anio/:mes')
   @Roles('admin_empresa')
   async resumenTrabajadores(
     @Param() params: ParamsReporteDto,
@@ -56,13 +56,13 @@ export class ReportesController {
     if (filtros.formato === 'xlsx') {
       const buf = await generarExcelResumenTrabajadores(datos);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="resumen-trabajadores-${params.año}-${params.mes}.xlsx"`);
+      res.setHeader('Content-Disposition', `attachment; filename="resumen-trabajadores-${params.anio}-${params.mes}.xlsx"`);
       return res.send(buf);
     }
     return res.status(HttpStatus.OK).json(datos);
   }
 
-  @Get('resumen-centros/:año/:mes')
+  @Get('resumen-centros/:anio/:mes')
   @Roles('admin_empresa', 'supervisor')
   async resumenCentros(
     @Param() params: ParamsReporteDto,
@@ -74,13 +74,13 @@ export class ReportesController {
     if (filtros.formato === 'xlsx') {
       const buf = await generarExcelResumenCentros(datos);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="resumen-centros-${params.año}-${params.mes}.xlsx"`);
+      res.setHeader('Content-Disposition', `attachment; filename="resumen-centros-${params.anio}-${params.mes}.xlsx"`);
       return res.send(buf);
     }
     return res.status(HttpStatus.OK).json(datos);
   }
 
-  @Get('libro-asistencia/:año/:mes')
+  @Get('libro-asistencia/:anio/:mes')
   @Roles('admin_empresa', 'supervisor')
   async libroAsistencia(
     @Param() params: ParamsReporteDto,
@@ -92,7 +92,7 @@ export class ReportesController {
     if (filtros.formato === 'xlsx') {
       const buf = await generarExcelLibroAsistencia(datos);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', `attachment; filename="libro-asistencia-${params.año}-${params.mes}.xlsx"`);
+      res.setHeader('Content-Disposition', `attachment; filename="libro-asistencia-${params.anio}-${params.mes}.xlsx"`);
       return res.send(buf);
     }
     return res.status(HttpStatus.OK).json(datos);

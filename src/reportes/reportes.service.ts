@@ -161,7 +161,7 @@ export class ReportesService {
   // ─── Reporte 1: Asistencia detallada ──────────────────────────────────────
 
   async asistencia(params: ParamsReporteDto, filtros: FiltrosReporteDto, db: PoolClient) {
-    const { año, mes } = params;
+    const { anio: año, mes } = params;
     validarPeriodo(año, mes);
 
     const fechaInicio = `${año}-${pad2(mes)}-01`;
@@ -263,7 +263,7 @@ export class ReportesService {
   // ─── Reporte 2: Resumen por trabajador ────────────────────────────────────
 
   async resumenTrabajadores(params: ParamsReporteDto, filtros: FiltrosReporteDto, db: PoolClient) {
-    const { año, mes } = params;
+    const { anio: año, mes } = params;
     validarPeriodo(año, mes);
 
     const asistencia = await this.asistencia(params, { ...filtros, formato: 'json' }, db);
@@ -310,7 +310,7 @@ export class ReportesService {
   // ─── Reporte 3: Resumen por centro ────────────────────────────────────────
 
   async resumenCentros(params: ParamsReporteDto, filtros: FiltrosReporteDto, db: PoolClient) {
-    const { año, mes } = params;
+    const { anio: año, mes } = params;
     validarPeriodo(año, mes);
 
     const fechaInicio = `${año}-${pad2(mes)}-01`;
@@ -397,7 +397,7 @@ export class ReportesService {
   // ─── Reporte 4: Libro de asistencia ──────────────────────────────────────
 
   async libroAsistencia(params: ParamsReporteDto, filtros: FiltrosReporteDto, db: PoolClient) {
-    const { año, mes } = params;
+    const { anio: año, mes } = params;
     validarPeriodo(año, mes);
 
     const asistencia = await this.asistencia(params, { ...filtros, formato: 'json' }, db);

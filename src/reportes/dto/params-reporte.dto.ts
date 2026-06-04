@@ -6,7 +6,7 @@ export class ParamsReporteDto {
   @IsInt()
   @Min(2024)
   @Max(2099)
-  año!: number;
+  anio!: number;
 
   @Type(() => Number)
   @IsInt()
