@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
-import { fromZonedTime } from 'date-fns-tz';
+import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { getISODay, getDaysInMonth } from 'date-fns';
 import { ReportesRepository, TrabajadorPeriodoRow, JornadaPeriodoRow, MarcacionPeriodoRow } from './reportes.repository';
 import { evaluarJornadaDia } from '../jornada/evaluator/evaluador';
@@ -66,12 +66,7 @@ function buildMarcacionesMap(rows: MarcacionPeriodoRow[]): Map<string, Map<strin
   for (const r of rows) {
     if (!map.has(r.trabajador_id)) map.set(r.trabajador_id, new Map());
     const m = r.timestamp_utc;
-    const fechaLocal = fromZonedTime(m, 'UTC');
-    // Convert to Chile date string
-    const local = new Date(m.getTime() - (m.getTimezoneOffset() * 60000));
-    // Simpler: use the UTC timestamp and subtract 4h (Chile winter)
-    const chileMs = m.getTime() - 4 * 3600 * 1000;
-    const fechaStr = new Date(chileMs).toISOString().slice(0, 10);
+    const fechaStr = formatInTimeZone(m, TZ, 'yyyy-MM-dd');
     const lista = map.get(r.trabajador_id)!.get(fechaStr) ?? [];
     lista.push(r);
     map.get(r.trabajador_id)!.set(fechaStr, lista);
@@ -214,7 +209,7 @@ export class ReportesService {
           jornada_pactada: jornada ? { hora_inicio: jornada.horaInicio.slice(0, 5), hora_termino: jornada.horaTermino.slice(0, 5), colacion_inicio: jornada.colacionInicio?.slice(0, 5) ?? null, colacion_termino: jornada.colacionTermino?.slice(0, 5) ?? null } : null,
           marcaciones: marcDia.map(m => ({
             tipo: m.tipo,
-            hora_local: new Date(m.timestampUtc.getTime() - 4 * 3600 * 1000).toISOString().slice(11, 16),
+            hora_local: formatInTimeZone(m.timestampUtc, TZ, 'HH:mm'),
             dentro_geocerca: m.dentroGeocerca,
           })),
           evaluacion: {
