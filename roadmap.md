@@ -26,9 +26,9 @@ con letra (A, B, C…) son el orden definido tras cerrar el bootstrap.
 
 ## Estado actual
 
-**Última actividad:** cierre del Paso C (endpoints de supervisor).
-**Próximo paso:** **Paso D** (reportes mensuales).
-**Tests vigentes:** 109 e2e + 98 unitarios + 5 SQL — todos verdes.
+**Última actividad:** cierre del Paso D (reportes mensuales).
+**Próximo paso:** a definir (Paso E — ajustes administrativos de marcaciones, o Paso G — frontend admin).
+**Tests vigentes:** 124 e2e + 112 unitarios + 5 SQL — todos verdes.
 **Repositorio:** GitHub privado.
 **Plataforma BD:** Neon (Postgres serverless).
 
@@ -133,16 +133,26 @@ DTOs). Refactor de `JornadaService.evaluarSemanaParaTrabajador`.
 
 **Commit:** `dc5f949`.
 
-### D — Reportes mensuales ⚪
+### D — Reportes mensuales 🟢
 
-Reportes exportables (PDF y/o Excel) para liquidación de sueldos y
+Reportes exportables (JSON + XLSX) para liquidación de sueldos y
 revisión DT: asistencia, atrasos acumulados, horas extra, ausencias.
 
-**Decisión pendiente:** ¿generamos PDF/Excel en backend o solo JSON y el
-frontend exporta? Mi inclinación: JSON estructurado en backend, export
-en frontend. Backend más simple, mismas APIs sirven para otras vistas.
+**Fecha de cierre:** 2026-06-03.
 
-**Tamaño estimado:** 1-2 sesiones.
+**Artefactos:** módulo `src/reportes/` con 4 reportes (asistencia mensual
+detallada, resumen trabajadores, resumen centros, libro de asistencia
+formato DT). Generación JSON + XLSX vía ExcelJS. Dependencia nueva: `exceljs`.
+
+**Métricas:** 124 tests e2e + 112 tests unitarios — todos verdes.
+
+**Commit:** `44b6bc8`.
+
+**Notas:** 3 bugs operativos encontrados y resueltos durante implementación:
+path param con `ñ` no válido en Express (renombrado a `anio`), `@IsUUID()`
+de class-validator/validator.js v13 más estricto de lo esperado (reemplazado
+por `@Matches(UUID_RE)`), manejo de zona horaria `America/Santiago` en
+comparación de fechas en tests de integración.
 
 ### E — Ajustes administrativos de marcaciones ⚪
 
