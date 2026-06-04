@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PoolClient } from 'pg';
 import { ConfiguracionJornada, JornadaPactadaVigente, MarcacionEvaluable } from './types';
+import type { MarcacionConDatos } from './evaluator/marcaciones-efectivas';
 
 interface ConfiguracionRow {
   tolerancia_atraso_minutos: number;
@@ -34,6 +35,8 @@ interface MarcacionRow {
   tipo: MarcacionEvaluable['tipo'];
   timestamp_utc: Date;
   dentro_geocerca: boolean | null;
+  marcacion_original_id: string | null;
+  datos_ajuste: { tipo_ajuste?: 'creacion' | 'correccion' | 'anulacion' } | null;
 }
 
 @Injectable()
@@ -114,9 +117,10 @@ export class JornadaRepository {
     trabajadorId: string,
     fechaStr: string,
     db: PoolClient,
-  ): Promise<MarcacionEvaluable[]> {
+  ): Promise<MarcacionConDatos[]> {
     const { rows } = await db.query<MarcacionRow>(
-      `SELECT id, tipo, timestamp_utc, dentro_geocerca
+      `SELECT id, tipo, timestamp_utc, dentro_geocerca,
+              marcacion_original_id, datos_ajuste
        FROM rc.marcaciones
        WHERE tenant_id = $1::uuid
          AND trabajador_id = $2::uuid
@@ -130,6 +134,8 @@ export class JornadaRepository {
       tipo: r.tipo,
       timestampUtc: r.timestamp_utc,
       dentroGeocerca: r.dentro_geocerca,
+      marcacionOriginalId: r.marcacion_original_id,
+      datosAjuste: r.datos_ajuste,
     }));
   }
 
@@ -139,10 +145,11 @@ export class JornadaRepository {
     lunesStr: string,
     domingoStr: string,
     db: PoolClient,
-  ): Promise<Map<string, MarcacionEvaluable[]>> {
+  ): Promise<Map<string, MarcacionConDatos[]>> {
     const { rows } = await db.query<MarcacionRow & { fecha_local: string }>(
       `SELECT
          id, tipo, timestamp_utc, dentro_geocerca,
+         marcacion_original_id, datos_ajuste,
          (timestamp_utc AT TIME ZONE 'America/Santiago')::date::text AS fecha_local
        FROM rc.marcaciones
        WHERE tenant_id = $1::uuid
@@ -153,10 +160,17 @@ export class JornadaRepository {
       [tenantId, trabajadorId, lunesStr, domingoStr],
     );
 
-    const map = new Map<string, MarcacionEvaluable[]>();
+    const map = new Map<string, MarcacionConDatos[]>();
     for (const r of rows) {
       const list = map.get(r.fecha_local) ?? [];
-      list.push({ id: r.id, tipo: r.tipo, timestampUtc: r.timestamp_utc, dentroGeocerca: r.dentro_geocerca });
+      list.push({
+        id: r.id,
+        tipo: r.tipo,
+        timestampUtc: r.timestamp_utc,
+        dentroGeocerca: r.dentro_geocerca,
+        marcacionOriginalId: r.marcacion_original_id,
+        datosAjuste: r.datos_ajuste,
+      });
       map.set(r.fecha_local, list);
     }
     return map;

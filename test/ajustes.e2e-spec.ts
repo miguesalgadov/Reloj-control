@@ -25,6 +25,23 @@ function testDbUrl(): string {
   return url;
 }
 
+async function ensureConfiguracionJornada(): Promise<void> {
+  const client = new Client({ connectionString: testDbUrl() });
+  await client.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('SET LOCAL ROLE admin_migrate');
+    await client.query(
+      `INSERT INTO rc.configuracion_jornada (tenant_id)
+       SELECT id FROM rc.tenants
+       ON CONFLICT (tenant_id) DO NOTHING`,
+    );
+    await client.query('COMMIT');
+  } finally {
+    await client.end();
+  }
+}
+
 /**
  * Fecha local Santiago N días atrás, hora 08:00.
  * Si la resta cruza al mes anterior, clampea al día 1 del mes actual
@@ -78,6 +95,7 @@ describe('Ajustes API (e2e)', () => {
   beforeAll(async () => {
     await resetTestDatabase();
     await setPasswordForUsers();
+    await ensureConfiguracionJornada();
     ({ app, httpServer } = await createTestApp());
 
     // ── Tokens ───────────────────────────────────────────────────────────────
@@ -291,6 +309,33 @@ describe('Ajustes API (e2e)', () => {
       } finally {
         await client.end();
       }
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // [aju-10] Integración: creacion ajuste → jornada del día lo refleja
+  // ═══════════════════════════════════════════════════════════════════════════
+  describe('[aju-10] creacion → /api/jornadas/:fecha refleja la marcación efectiva', () => {
+    it('tras crear ajuste tipo creacion, la jornada del día incluye la marcación', async () => {
+      // tsSantiago(1) con clampeo garantiza estar en el mes actual
+      const tsAjuste = tsSantiago(1);
+      const fechaAjuste = tsAjuste.slice(0, 10); // 'YYYY-MM-DD'
+
+      const resAjuste = await request(httpServer).post('/api/ajustes')
+        .set('Authorization', `Bearer ${tokenAdmin}`)
+        .send({ tipo_ajuste: 'creacion', trabajador_id: JUAN_TRAB_ID, motivo: MOTIVO_OK, tipo_marcacion: 'entrada', timestamp_local: tsAjuste });
+      expect(resAjuste.status).toBe(201);
+      const ajusteId = resAjuste.body.id;
+
+      // Juan consulta su jornada de ese día
+      const resJornada = await request(httpServer)
+        .get(`/api/jornadas/${fechaAjuste}`)
+        .set('Authorization', `Bearer ${tokenJuan}`);
+      expect(resJornada.status).toBe(200);
+
+      // La marcación efectiva (creacion) debe aparecer en marcacionesDelDia
+      const ids = (resJornada.body.marcacionesDelDia as any[]).map(m => m.id);
+      expect(ids).toContain(ajusteId);
     });
   });
 

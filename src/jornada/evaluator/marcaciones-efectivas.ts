@@ -53,7 +53,9 @@ export function obtenerMarcacionesEfectivas(
     if (anuladas.has(orig.id)) continue;          // anulada → ignorar
     const correccion = correcciones.get(orig.id);
     if (correccion) {
-      efectivas.push(correccion);                  // reemplazada por corrección
+      // La corrección hereda el tipo de la original (que puede ser 'entrada', 'salida', etc.)
+      // para que el evaluador la encuentre al filtrar por tipo.
+      efectivas.push({ ...correccion, tipo: orig.tipo });
     } else {
       efectivas.push(orig);                        // sin ajuste → usar original
     }

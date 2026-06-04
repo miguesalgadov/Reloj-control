@@ -3,6 +3,7 @@ import { PoolClient } from 'pg';
 import { JornadaRepository } from './jornada.repository';
 import { evaluarJornadaDia } from './evaluator/evaluador';
 import { evaluarSemana, DatosDia } from './evaluator/evaluador-semana';
+import { obtenerMarcacionesEfectivas } from './evaluator/marcaciones-efectivas';
 import { ResultadoJornadaDia, ResultadoSemana } from './types';
 import { fechaLocalChile, diaSemanaIso, toLocalChile, diasDeSemana, inicioSemanaIso } from './evaluator/utils';
 import type { JwtPayload } from '../types/express';
@@ -53,7 +54,8 @@ export class JornadaService {
         const local = toLocalChile(fecha);
         const diaSemana = diaSemanaIso(local);
         const jornada = await this.repo.getJornadaPactada(tenantId, trabajadorId, diaSemana, db);
-        const marcaciones = marcacionesPorDia.get(fechaStr) ?? [];
+        const marcacionesRaw = marcacionesPorDia.get(fechaStr) ?? [];
+        const marcaciones = obtenerMarcacionesEfectivas(marcacionesRaw);
         return { fechaStr, jornada, marcaciones };
       }),
     );
@@ -81,7 +83,8 @@ export class JornadaService {
     const diaSemana = diaSemanaIso(local);
 
     const jornada = await this.repo.getJornadaPactada(tenantId, trabajadorId, diaSemana, db);
-    const marcaciones = await this.repo.getMarcacionesDia(tenantId, trabajadorId, fechaStr, db);
+    const marcacionesRaw = await this.repo.getMarcacionesDia(tenantId, trabajadorId, fechaStr, db);
+    const marcaciones = obtenerMarcacionesEfectivas(marcacionesRaw);
 
     return evaluarJornadaDia(marcaciones, jornada, config, fechaStr, ahora);
   }
