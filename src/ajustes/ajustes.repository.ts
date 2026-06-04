@@ -24,12 +24,44 @@ export interface AjusteRow {
     tipo_ajuste: string;
     motivo: string;
     admin_id: string;
+    tipo_marcacion?: string;
     timestamp_corregido?: string;
   };
   creado_por_id: string;
   creado_por_nombre: string;
   created_at: Date;
 }
+
+export interface AjusteDetalleRow extends AjusteRow {
+  marcacion_original_completa: Record<string, unknown> | null;
+  audit_log_id: string | null;
+}
+
+// Columnas comunes para listar y detalle
+const SELECT_AJUSTE_COLS = `
+  m.id, m.trabajador_id,
+  t.rut                          AS trabajador_rut,
+  t.nombres                      AS trabajador_nombres,
+  t.apellido_paterno             AS trabajador_apellido_paterno,
+  COALESCE(m.datos_ajuste->>'tipo_marcacion', m.tipo::text) AS tipo_marcacion,
+  m.timestamp_utc,
+  m.marcacion_original_id,
+  m.datos_ajuste,
+  (m.datos_ajuste->>'admin_id')        AS creado_por_id,
+  (u.nombres || ' ' || u.apellidos)    AS creado_por_nombre,
+  m.created_at
+`;
+
+// WHERE que identifica ajustes de los 3 sub-tipos (creacion usa tipo real, no 'ajuste')
+const WHERE_ES_AJUSTE = `
+  m.datos_ajuste IS NOT NULL
+  AND (m.datos_ajuste->>'tipo_ajuste') IN ('creacion', 'correccion', 'anulacion')
+`;
+
+const JOINS_AJUSTE = `
+  JOIN rc.trabajadores t ON t.id = m.trabajador_id
+  JOIN rc.usuarios u ON u.id = (m.datos_ajuste->>'admin_id')::uuid
+`;
 
 @Injectable()
 export class AjustesRepository {
@@ -149,69 +181,72 @@ export class AjustesRepository {
     },
     db: PoolClient,
   ): Promise<{ data: AjusteRow[]; total: number }> {
+    const params = [
+      filtros.trabajadorId ?? null,
+      filtros.tipoAjuste ?? null,
+      filtros.desde ?? null,
+      filtros.hasta ?? null,
+      filtros.creadoPorId ?? null,
+    ];
+
+    const whereExtra = `
+      AND ($1::uuid IS NULL OR m.trabajador_id = $1::uuid)
+      AND ($2::text IS NULL OR m.datos_ajuste->>'tipo_ajuste' = $2)
+      AND ($3::date IS NULL OR (m.timestamp_utc AT TIME ZONE 'America/Santiago')::date >= $3::date)
+      AND ($4::date IS NULL OR (m.timestamp_utc AT TIME ZONE 'America/Santiago')::date <= $4::date)
+      AND ($5::uuid IS NULL OR (m.datos_ajuste->>'admin_id')::uuid = $5::uuid)
+    `;
+
     const [countRes, dataRes] = await Promise.all([
       db.query<{ total: string }>(
         `SELECT COUNT(*)::text AS total
            FROM rc.marcaciones m
-           JOIN rc.trabajadores t ON t.id = m.trabajador_id
-           JOIN rc.usuarios u ON u.id = (m.datos_ajuste->>'admin_id')::uuid
-          WHERE m.tipo = 'ajuste'
-            AND ($1::uuid IS NULL OR m.trabajador_id = $1::uuid)
-            AND ($2::text IS NULL OR m.datos_ajuste->>'tipo_ajuste' = $2)
-            AND ($3::date IS NULL OR (m.timestamp_utc AT TIME ZONE 'America/Santiago')::date >= $3::date)
-            AND ($4::date IS NULL OR (m.timestamp_utc AT TIME ZONE 'America/Santiago')::date <= $4::date)
-            AND ($5::uuid IS NULL OR (m.datos_ajuste->>'admin_id')::uuid = $5::uuid)`,
-        [filtros.trabajadorId ?? null, filtros.tipoAjuste ?? null, filtros.desde ?? null, filtros.hasta ?? null, filtros.creadoPorId ?? null],
+           ${JOINS_AJUSTE}
+          WHERE ${WHERE_ES_AJUSTE} ${whereExtra}`,
+        params,
       ),
       db.query<AjusteRow>(
-        `SELECT
-           m.id, m.trabajador_id,
-           t.rut                   AS trabajador_rut,
-           t.nombres               AS trabajador_nombres,
-           t.apellido_paterno      AS trabajador_apellido_paterno,
-           m.tipo                  AS tipo_marcacion,
-           m.timestamp_utc,
-           m.marcacion_original_id,
-           m.datos_ajuste,
-           (m.datos_ajuste->>'admin_id') AS creado_por_id,
-           (u.nombres || ' ' || u.apellidos) AS creado_por_nombre,
-           m.created_at
+        `SELECT ${SELECT_AJUSTE_COLS}
            FROM rc.marcaciones m
-           JOIN rc.trabajadores t ON t.id = m.trabajador_id
-           JOIN rc.usuarios u ON u.id = (m.datos_ajuste->>'admin_id')::uuid
-          WHERE m.tipo = 'ajuste'
-            AND ($1::uuid IS NULL OR m.trabajador_id = $1::uuid)
-            AND ($2::text IS NULL OR m.datos_ajuste->>'tipo_ajuste' = $2)
-            AND ($3::date IS NULL OR (m.timestamp_utc AT TIME ZONE 'America/Santiago')::date >= $3::date)
-            AND ($4::date IS NULL OR (m.timestamp_utc AT TIME ZONE 'America/Santiago')::date <= $4::date)
-            AND ($5::uuid IS NULL OR (m.datos_ajuste->>'admin_id')::uuid = $5::uuid)
+           ${JOINS_AJUSTE}
+          WHERE ${WHERE_ES_AJUSTE} ${whereExtra}
           ORDER BY m.created_at DESC
           LIMIT $6 OFFSET $7`,
-        [filtros.trabajadorId ?? null, filtros.tipoAjuste ?? null, filtros.desde ?? null, filtros.hasta ?? null, filtros.creadoPorId ?? null, filtros.limit, filtros.offset],
+        [...params, filtros.limit, filtros.offset],
       ),
     ]);
+
     return { data: dataRes.rows, total: parseInt(countRes.rows[0].total, 10) };
   }
 
-  async findById(id: string, db: PoolClient): Promise<AjusteRow | null> {
-    const { rows } = await db.query<AjusteRow>(
+  async findById(id: string, db: PoolClient): Promise<AjusteDetalleRow | null> {
+    const { rows } = await db.query<AjusteDetalleRow>(
       `SELECT
-         m.id, m.trabajador_id,
-         t.rut                   AS trabajador_rut,
-         t.nombres               AS trabajador_nombres,
-         t.apellido_paterno      AS trabajador_apellido_paterno,
-         m.tipo                  AS tipo_marcacion,
-         m.timestamp_utc,
-         m.marcacion_original_id,
-         m.datos_ajuste,
-         (m.datos_ajuste->>'admin_id') AS creado_por_id,
-         (u.nombres || ' ' || u.apellidos) AS creado_por_nombre,
-         m.created_at
-         FROM rc.marcaciones m
-         JOIN rc.trabajadores t ON t.id = m.trabajador_id
-         JOIN rc.usuarios u ON u.id = (m.datos_ajuste->>'admin_id')::uuid
-        WHERE m.id = $1::uuid
-          AND m.tipo = 'ajuste'`,
+         ${SELECT_AJUSTE_COLS},
+         CASE WHEN orig.id IS NOT NULL THEN
+           jsonb_build_object(
+             'id',               orig.id::text,
+             'tipo',             orig.tipo::text,
+             'fuente',           orig.fuente::text,
+             'timestamp_utc',    orig.timestamp_utc,
+             'latitud',          orig.latitud,
+             'longitud',         orig.longitud,
+             'dentro_geocerca',  orig.dentro_geocerca,
+             'datos_ajuste',     orig.datos_ajuste,
+             'created_at',       orig.created_at
+           )
+         ELSE NULL END AS marcacion_original_completa,
+         al.id AS audit_log_id
+       FROM rc.marcaciones m
+       ${JOINS_AJUSTE}
+       LEFT JOIN rc.marcaciones orig ON orig.id = m.marcacion_original_id
+       LEFT JOIN LATERAL (
+         SELECT id FROM rc.audit_log
+          WHERE entidad_id = m.id AND categoria = 'marcacion_ajustada'
+          ORDER BY created_at DESC LIMIT 1
+       ) al ON true
+      WHERE m.id = $1::uuid
+        AND ${WHERE_ES_AJUSTE}`,
       [id],
     );
     return rows[0] ?? null;

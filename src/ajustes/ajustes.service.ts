@@ -104,6 +104,7 @@ export class AjustesService {
       tipo_ajuste: dto.tipo_ajuste,
       motivo: dto.motivo,
       admin_id: user.sub,
+      tipo_marcacion: tipoMarcacionRespuesta,
     };
     if (dto.tipo_ajuste === 'correccion' && marcacionOriginalTimestamp) {
       datosAjuste['timestamp_original'] = marcacionOriginalTimestamp.toISOString();
@@ -184,7 +185,11 @@ export class AjustesService {
   async detalle(id: string, db: PoolClient) {
     const row = await this.repo.findById(id, db);
     if (!row) throw new NotFoundException('Ajuste no encontrado.');
-    return this.formatRow(row);
+    return {
+      ...this.formatRow(row),
+      marcacion_original_completa: row.marcacion_original_completa ?? null,
+      audit_log_id: row.audit_log_id ?? null,
+    };
   }
 
   private formatRow(r: import('./ajustes.repository').AjusteRow) {
