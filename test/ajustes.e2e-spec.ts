@@ -511,3 +511,94 @@ describe('Ajustes API (e2e)', () => {
     });
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// [aju-int-1] Flujo de integración end-to-end
+// ═════════════════════════════════════════════════════════════════════════════
+describe('[aju-int-1] Flujo completo: olvido → ajuste → presente en todos los sistemas', () => {
+  let app2: INestApplication;
+  let httpServer2: ReturnType<INestApplication['getHttpServer']>;
+  let tokenAdmin2: string;
+  let tokenJuan2: string;
+
+  const FECHA = '2026-06-02'; // lunes de junio 2026 — laborable para Juan
+
+  beforeAll(async () => {
+    await resetTestDatabase();
+    await setPasswordForUsers();
+    await ensureConfiguracionJornada();
+    ({ app: app2, httpServer: httpServer2 } = await createTestApp());
+
+    const rA = await request(httpServer2).post('/api/auth/login').send({ email: ADMIN_A_EMAIL, password: PASSWORD_DEMO });
+    tokenAdmin2 = rA.body.accessToken;
+    const rJ = await request(httpServer2).post('/api/auth/login').send({ email: JUAN_EMAIL, password: PASSWORD_DEMO });
+    tokenJuan2 = rJ.body.accessToken;
+  });
+
+  afterAll(async () => { await app2.close(); });
+
+  it('[aju-int-1] trabajador olvidó marcar → ajuste creacion → presente en evaluador, reporte y supervisión', async () => {
+    const hoy = new Date();
+    const año = hoy.getFullYear();
+    const mes = hoy.getMonth() + 1;
+
+    // ── Paso 1: sin ajuste, supervisión muestra a Juan sin marcaciones ─────
+    const resSup1 = await request(httpServer2)
+      .get(`/api/supervision/dia/${FECHA}`)
+      .set('Authorization', `Bearer ${tokenAdmin2}`);
+    expect(resSup1.status).toBe(200);
+    const juan1 = resSup1.body.data.find((w: any) => w.trabajador.id === JUAN_TRAB_ID);
+    if (juan1) {
+      expect(['ausente', 'esperando']).toContain(juan1.estado_dia);
+    }
+
+    // ── Paso 2: admin crea ajuste tipo creacion (entrada puntual) ─────────
+    const resAjuste = await request(httpServer2)
+      .post('/api/ajustes')
+      .set('Authorization', `Bearer ${tokenAdmin2}`)
+      .send({
+        tipo_ajuste: 'creacion',
+        trabajador_id: JUAN_TRAB_ID,
+        motivo: 'Trabajador olvidó registrar su entrada por fallo en el sistema biométrico.',
+        tipo_marcacion: 'entrada',
+        timestamp_local: `${FECHA}T08:00:00`,
+        confirmacion_mes_cerrado: false,
+      });
+    expect(resAjuste.status).toBe(201);
+    const ajusteId = resAjuste.body.id;
+    expect(ajusteId).toBeDefined();
+
+    // ── Paso 3: evaluador del Paso 4 considera al trabajador presente ──────
+    const resJornada = await request(httpServer2)
+      .get(`/api/jornadas/${FECHA}`)
+      .set('Authorization', `Bearer ${tokenJuan2}`);
+    expect(resJornada.status).toBe(200);
+    expect(resJornada.body.inasistencia.inasistencia).toBe(false);
+    expect(resJornada.body.marcacionesDelDia.length).toBeGreaterThan(0);
+    expect(resJornada.body.marcacionesDelDia.some((m: any) => m.tipo === 'entrada')).toBe(true);
+    const idEnResultado = resJornada.body.marcacionesDelDia.find((m: any) => m.tipo === 'entrada')?.id;
+    expect(idEnResultado).toBe(ajusteId);
+
+    // ── Paso 4: supervisión ya no lo muestra como ausente ─────────────────
+    const resSup2 = await request(httpServer2)
+      .get(`/api/supervision/dia/${FECHA}`)
+      .set('Authorization', `Bearer ${tokenAdmin2}`);
+    expect(resSup2.status).toBe(200);
+    const juan2 = resSup2.body.data.find((w: any) => w.trabajador.id === JUAN_TRAB_ID);
+    if (juan2) {
+      expect(['presente', 'atraso']).toContain(juan2.estado_dia);
+      expect(juan2.ultima_marcacion?.id).toBe(ajusteId);
+    }
+
+    // ── Paso 5: reporte del Paso D muestra el día como trabajado ──────────
+    const resReporte = await request(httpServer2)
+      .get(`/api/reportes/asistencia/${año}/${mes}?trabajador_id=${JUAN_TRAB_ID}`)
+      .set('Authorization', `Bearer ${tokenAdmin2}`);
+    expect(resReporte.status).toBe(200);
+    const diaRep = resReporte.body.trabajadores[0]?.dias.find((d: any) => d.fecha === FECHA);
+    if (diaRep?.es_laborable) {
+      expect(diaRep.evaluacion.inasistencia).toBe(false);
+      expect(diaRep.marcaciones.some((m: any) => m.hora_local === '08:00')).toBe(true);
+    }
+  });
+});

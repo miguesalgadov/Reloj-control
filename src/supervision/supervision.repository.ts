@@ -29,6 +29,8 @@ export interface MarcacionDiaRow {
   tipo: 'entrada' | 'salida' | 'inicio_colacion' | 'fin_colacion' | 'ajuste';
   timestamp_utc: Date;
   dentro_geocerca: boolean | null;
+  marcacion_original_id?: string | null;
+  datos_ajuste?: { tipo_ajuste?: 'creacion' | 'correccion' | 'anulacion' } | null;
 }
 
 export interface AlertaInasistenciaRow {
@@ -163,7 +165,8 @@ export class SupervisionRepository {
 
   async marcacionesDelDia(fechaStr: string, db: PoolClient): Promise<MarcacionDiaRow[]> {
     const { rows } = await db.query<MarcacionDiaRow>(
-      `SELECT id, trabajador_id, tipo, timestamp_utc, dentro_geocerca
+      `SELECT id, trabajador_id, tipo, timestamp_utc, dentro_geocerca,
+              marcacion_original_id, datos_ajuste
          FROM rc.marcaciones
         WHERE (timestamp_utc AT TIME ZONE 'America/Santiago')::date = $1::date
         ORDER BY trabajador_id, timestamp_utc`,

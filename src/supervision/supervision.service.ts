@@ -8,6 +8,7 @@ import {
 } from './supervision.repository';
 import { JornadaService } from '../jornada/jornada.service';
 import { evaluarJornadaDia } from '../jornada/evaluator/evaluador';
+import { obtenerMarcacionesEfectivas, MarcacionConDatos } from '../jornada/evaluator/marcaciones-efectivas';
 import { diaSemanaIso, fechaLocalChile, toLocalChile } from '../jornada/evaluator/utils';
 import {
   ConfiguracionJornada,
@@ -52,8 +53,15 @@ function toJornadaVigente(t: TrabajadorDiaRow): JornadaPactadaVigente {
   };
 }
 
-function toMarcacionEvaluable(m: MarcacionDiaRow): MarcacionEvaluable {
-  return { id: m.id, tipo: m.tipo, timestampUtc: m.timestamp_utc, dentroGeocerca: m.dentro_geocerca };
+function toMarcacionConDatos(m: MarcacionDiaRow): MarcacionConDatos {
+  return {
+    id: m.id,
+    tipo: m.tipo,
+    timestampUtc: m.timestamp_utc,
+    dentroGeocerca: m.dentro_geocerca,
+    marcacionOriginalId: m.marcacion_original_id ?? null,
+    datosAjuste: m.datos_ajuste ?? null,
+  };
 }
 
 @Injectable()
@@ -263,21 +271,21 @@ export class SupervisionService {
   ) {
     return trabajadores.map(t => {
       const rawMarcs = marcPorTrab.get(t.trabajador_id) ?? [];
-      const marcaciones = rawMarcs.map(toMarcacionEvaluable);
+      const marcaciones = obtenerMarcacionesEfectivas(rawMarcs.map(toMarcacionConDatos));
       const jornada: JornadaPactadaVigente | null =
         t.contrato_id && t.dia_semana ? toJornadaVigente(t) : null;
 
       const evaluacion = evaluarJornadaDia(marcaciones, jornada, config, fechaStr, ahora);
       const estado_dia = derivarEstadoDia(t.contrato_id, evaluacion, marcaciones);
 
-      const ultimaRaw = rawMarcs.length > 0 ? rawMarcs[rawMarcs.length - 1] : null;
-      const ultima_marcacion = ultimaRaw
+      const ultimaEfectiva = marcaciones.length > 0 ? marcaciones[marcaciones.length - 1] : null;
+      const ultima_marcacion = ultimaEfectiva
         ? {
-            id: ultimaRaw.id,
-            tipo: ultimaRaw.tipo,
-            timestamp_utc: ultimaRaw.timestamp_utc.toISOString(),
-            hora_local_chile: formatInTimeZone(ultimaRaw.timestamp_utc, 'America/Santiago', 'HH:mm:ss'),
-            dentro_geocerca: ultimaRaw.dentro_geocerca,
+            id: ultimaEfectiva.id,
+            tipo: ultimaEfectiva.tipo,
+            timestamp_utc: ultimaEfectiva.timestampUtc.toISOString(),
+            hora_local_chile: formatInTimeZone(ultimaEfectiva.timestampUtc, 'America/Santiago', 'HH:mm:ss'),
+            dentro_geocerca: ultimaEfectiva.dentroGeocerca,
           }
         : null;
 
