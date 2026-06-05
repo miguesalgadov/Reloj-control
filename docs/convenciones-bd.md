@@ -290,8 +290,72 @@ Items documentados al cierre del Paso A v3:
 - **Funciones nuevas**: copiar la plantilla de §2.2.
 - **Migraciones nuevas**: revisar checklist contra §7.
 - **Tablas nuevas**: aplicar RLS de §4.
+- **Módulos que consumen `rc.marcaciones`**: leer §10 antes de implementar.
 - **Code review**: rechazar PRs que violen estas convenciones sin
   justificación documentada.
 
 Si una convención bloquea legítimamente algo necesario, abrir la discusión
 y actualizar este documento, no hacer la excepción sin registro.
+
+---
+
+## 10. Marcaciones tipo `ajuste` (Paso E)
+
+Las marcaciones con `tipo='ajuste'` representan correcciones administrativas
+de otras marcaciones. Tienen tres sub-tipos en `datos_ajuste->>'tipo_ajuste'`:
+`creacion`, `correccion`, `anulacion`.
+
+### 10.1 Regla obligatoria para cualquier módulo que filtre por `tipo`
+
+**Todo módulo que filtre `rc.marcaciones` por el campo `tipo` (`entrada`,
+`salida`, `inicio_colacion`, `fin_colacion`) DEBE pasar las marcaciones por
+`obtenerMarcacionesEfectivas()` ANTES del filtro.**
+
+Función: `src/jornada/evaluator/marcaciones-efectivas.ts`
+
+Esta función garantiza tres cosas:
+
+1. **Correcciones:** la fila de ajuste tipo `correccion` tiene `tipo='ajuste'`
+   en la base, pero se devuelve con el `tipo` de la original (ej. `'entrada'`).
+   Sin esto, filtros como `m.tipo === 'entrada'` descartan silenciosamente la
+   corrección, produciendo datos incorrectos sin ningún error visible.
+2. **Anulaciones:** las marcaciones anuladas por un ajuste tipo `anulacion`
+   se excluyen del resultado.
+3. **Creaciones:** los ajustes tipo `creacion` — cuyo `tipo` en DB es el tipo
+   real (`'entrada'`, `'salida'`, etc.) — se incluyen como marcaciones
+   independientes.
+
+### 10.2 Por qué existe esta regla
+
+Este bug se encontró **dos veces** durante la implementación del Paso E:
+
+| Bloque | Módulo afectado | Síntoma |
+|--------|----------------|---------|
+| Bloque 5 | `src/jornada/` (evaluador del Paso 4) | Correcciones no afectaban el resultado de jornada |
+| Bloque 6 | `src/reportes/` (4 reportes del Paso D) | Correcciones no reducían atrasos en reportes |
+
+En ambos casos, el código era funcionalmente correcto para marcaciones sin
+ajustes. El bug solo emergía cuando un admin corregía una marcación. Sin
+tests específicos de ajuste, habría llegado a producción invisible.
+
+El patrón correcto en `obtenerMarcacionesEfectivas()`:
+```typescript
+// Al devolver una corrección, hereda el tipo de la marcación original
+efectivas.push({ ...correccion, tipo: orig.tipo });
+```
+
+### 10.3 Módulos que actualmente aplican la regla
+
+- `src/jornada/jornada.service.ts` — evaluador del Paso 4
+- `src/reportes/reportes.service.ts` — los 4 reportes del Paso D
+- `src/supervision/supervision.service.ts` — vista del día y alertas del Paso C
+
+### 10.4 Checklist para módulos nuevos
+
+Antes de mergearlo, verificar:
+
+- [ ] ¿El módulo lee `rc.marcaciones`?
+- [ ] ¿Filtra por `tipo` (`entrada`, `salida`, etc.)?
+- [ ] ¿Llama a `obtenerMarcacionesEfectivas()` antes del filtro?
+- [ ] ¿Existe al menos un test que crea un ajuste y verifica que el módulo
+      lo refleja correctamente?
