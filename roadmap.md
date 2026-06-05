@@ -4,7 +4,7 @@
 > documento sobrevive a conversaciones y reemplazos de herramientas. Si
 > entrás al proyecto sin contexto previo (humano o IA), empezá leyendo
 > este archivo.
-> **Última actualización:** 2026-05-31.
+> **Última actualización:** 2026-06-05.
 
 ---
 
@@ -26,9 +26,11 @@ con letra (A, B, C…) son el orden definido tras cerrar el bootstrap.
 
 ## Estado actual
 
-**Última actividad:** cierre del Paso D (reportes mensuales).
-**Próximo paso:** a definir (Paso E — ajustes administrativos de marcaciones, o Paso G — frontend admin).
-**Tests vigentes:** 124 e2e + 112 unitarios + 5 SQL — todos verdes.
+**Última actividad:** cierre del Paso E. Backend completo — la API puede
+operar una empresa piloto sin asistencia técnica.
+**Próximo paso:** Paso G (frontend admin) o pausa estratégica para mostrar
+al cliente piloto antes de invertir en UI.
+**Tests vigentes:** 160 e2e + 131 unitarios + 5 SQL — todos verdes.
 **Repositorio:** GitHub privado.
 **Plataforma BD:** Neon (Postgres serverless).
 
@@ -97,10 +99,11 @@ funciona idénticamente en ambos casos.
 
 ---
 
-## Pasos pendientes — corto plazo: API operable
+## ✅ Pasos completados — corto plazo: API operable
 
-**Objetivo del bloque:** dejar la API en condiciones de operar una empresa
-piloto sin asistencia técnica. Sin esto el producto no es producto.
+**Estado:** COMPLETADO con el cierre del Paso E (2026-06-05).
+**Objetivo cumplido:** la API puede operar una empresa piloto sin asistencia
+técnica. Todos los Pasos B–E están cerrados y mergeados en `main`.
 
 ### B — CRUD del admin de empresa 🟢
 
@@ -154,18 +157,34 @@ de class-validator/validator.js v13 más estricto de lo esperado (reemplazado
 por `@Matches(UUID_RE)`), manejo de zona horaria `America/Santiago` en
 comparación de fechas en tests de integración.
 
-### E — Ajustes administrativos de marcaciones ⚪
+### E — Ajustes administrativos de marcaciones 🟢
 
-Endpoint para que el admin corrija marcaciones erradas (típico: olvido
-de marcaje, marcaje duplicado por error). El tipo `'ajuste'` ya existe
-en la BD; falta la API.
+3 sub-tipos (creacion, correccion, anulacion) con trazabilidad legal
+completa, cadena hash íntegra y propagación a evaluador, reportes y
+supervisión.
 
-**Restricciones a definir en su diseño:**
-- ¿Plazo máximo para ajustar? (e.g., dentro del mes corriente)
-- ¿Justificación obligatoria con mínimo de caracteres?
-- ¿Doble aprobación para ajustes sobre meses cerrados?
+**Fecha de cierre:** 2026-06-03.
 
-**Tamaño estimado:** 1 sesión.
+**Artefactos:**
+- `src/ajustes/` — módulo completo (3 endpoints: POST, GET list, GET detalle).
+- `src/jornada/evaluator/marcaciones-efectivas.ts` — función pura compartida.
+- `src/common/validators/uuid.ts` — constante `UUID_RE`.
+- Migración `010_marcaciones_ajuste.sql` — columna `datos_ajuste`, constraints
+  `marc_ajuste_*` actualizados, función `rc.registrar_ajuste()` con cadena hash.
+- Actualizaciones a `src/jornada/`, `src/reportes/`, `src/supervision/` para
+  usar `obtenerMarcacionesEfectivas()` en todos los flujos de evaluación.
+
+**Métricas:** 160 tests e2e + 131 tests unitarios — todos verdes.
+
+**Commit range:** `55bd83b..4fd5b66`.
+
+**Notas:** 2 bugs silenciosos encontrados y corregidos durante implementación
+(Bloques 5 y 6): las correcciones devueltas por `obtenerMarcacionesEfectivas()`
+tenían `tipo='ajuste'` en lugar de heredar el tipo de la original, por lo que
+el evaluador, los reportes y la supervisión las descartaban sin error visible.
+Corregido con `{ ...correccion, tipo: orig.tipo }`. Patrón obligatorio
+documentado en [`docs/paso-e-ajustes-administrativos.md`](./paso-e-ajustes-administrativos.md)
+§6.4 y §12.
 
 ---
 
@@ -264,7 +283,7 @@ Trabajo que no termina nunca y se hace en paralelo con los pasos.
 
 Items pendientes registrados a lo largo del desarrollo:
 
-- Marcaciones tipo `ajuste`: modelar reemplazo de la original (Paso 4).
+- ~~Marcaciones tipo `ajuste`: modelar reemplazo de la original (Paso 4).~~ ✅ Resuelto en Paso E.
 - `redondeo_horas_extra_modo`: activar `'arriba'` y `'cercano'`.
 - `horario_marcaje_anticipado_minutos`: activar lógica.
 - Job nocturno que ejecute `verificar_cadena_hash` sobre todos los tenants.
