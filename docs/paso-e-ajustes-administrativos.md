@@ -339,6 +339,24 @@ Para cada par (tipo_marcacion, momento_del_día):
 
 Esta lógica vive en función pura `obtenerMarcacionesEfectivas()`.
 
+> **⚠ Nota crítica de implementación (descubierta en Bloques 5 y 6):**
+> Cuando una corrección reemplaza a la original, la fila de corrección
+> tiene `tipo='ajuste'` en la base de datos. Al devolverla como marcación
+> efectiva, la función **debe sobreescribir `tipo` con el tipo de la
+> original** (ej. `'entrada'`). Sin esto, el evaluador, los reportes y la
+> supervisión filtran por `m.tipo === 'entrada'` y descartan
+> silenciosamente la corrección — el ajuste existe en el sistema pero no
+> produce ningún efecto observable.
+>
+> Implementación correcta en `obtenerMarcacionesEfectivas()`:
+> ```typescript
+> efectivas.push({ ...correccion, tipo: orig.tipo });
+> ```
+>
+> Este bug se repitió independientemente en tres módulos (evaluador del
+> Paso 4, reportes del Paso D, supervisión del Paso C). Cualquier módulo
+> futuro que filtre marcaciones por `tipo` debe seguir el mismo patrón.
+
 ---
 
 ## 7. Estructura del módulo NestJS
@@ -362,7 +380,8 @@ src/jornada/evaluator/
 - `JornadaModule` (para usar `obtenerMarcacionesEfectivas`).
 - `DatabaseModule`.
 
-**Sin nuevas migraciones**. El schema del Paso 1 ya cubre todo.
+**Migración requerida**: `db/migrations/010_marcaciones_ajuste.sql`
+(ver §11 criterio 2 para detalle).
 
 ---
 
@@ -554,7 +573,24 @@ Casos específicos:
 ## 11. Criterios de aceptación
 
 1. **Compilación limpia**: `npm run build` sin errores.
-2. **Sin nuevas migraciones**: schema del Paso 1 cubre todo.
+2. **Migración 010 aplicada** (`db/migrations/010_marcaciones_ajuste.sql`).
+   El documento original decía "sin nuevas migraciones"; esto fue incorrecto.
+   La columna `datos_ajuste` no existía en el schema y era necesaria.
+   La migración 010 realiza tres cambios:
+   - `ALTER TABLE rc.marcaciones ADD COLUMN datos_ajuste jsonb` — columna
+     que almacena `{tipo_ajuste, motivo, admin_id, tipo_marcacion}` para
+     cada ajuste.
+   - Reemplaza la constraint `marc_ajuste_requiere_original` (que exigía
+     `marcacion_original_id IS NOT NULL` para TODO `tipo='ajuste'`) por dos
+     constraints más precisas: `marc_ajuste_requiere_datos` (exige
+     `datos_ajuste IS NOT NULL`) y `marc_ajuste_correccion_requiere_original`
+     (exige `marcacion_original_id` solo para sub-tipos correccion/anulacion,
+     permitiendo que creacion no tenga original).
+   - Crea la función `rc.registrar_ajuste()` que replica la lógica de
+     `rc.registrar_marcacion()` (advisory lock, secuencia monotónica,
+     `_payload_marcacion`, cadena hash) aceptando además `datos_ajuste jsonb`.
+     Esto es necesario porque la tabla es append-only y no permite UPDATE
+     después de insertar.
 3. **Tests verdes**:
    - e2e: 124 (anteriores) + ~15 (Paso E) ≈ 139.
    - unitarios: 112 (anteriores) + ~15 (Paso E) ≈ 127.
@@ -589,6 +625,13 @@ Casos específicos:
    agregar endpoint con autorización especial.
 5. **Vista "histórico de ajustes por trabajador"** en frontend admin
    → Paso G.
+6. **Patrón obligatorio para módulos futuros que filtren marcaciones por
+   tipo**: todo módulo que evalúe marcaciones debe usar
+   `obtenerMarcacionesEfectivas()` y heredar el `tipo` de la original al
+   devolver una corrección (`{ ...correccion, tipo: orig.tipo }`). Sin
+   esto, los filtros `m.tipo === 'entrada'` descartan silenciosamente las
+   correcciones. Este bug se repitió en tres módulos durante el Paso E
+   (evaluador, reportes, supervisión) — ver nota en §6.4.
 
 ---
 
@@ -679,3 +722,4 @@ i. **Bloque 7 — Actualización supervisión (Paso C)**:
 | Append-only de ajustes | Coherencia con principio de auditoría |
 | Función pura `obtenerMarcacionesEfectivas` | Reusable entre evaluador, reportes, supervisión |
 | Limpieza de bugs latentes incluida | Mejor arreglar ahora que diagnosticar bajo presión |
+| Migración 010: columna `datos_ajuste` y función `rc.registrar_ajuste()` | Descubierto durante implementación; documento original asumía que el schema del Paso 1 cubría todo — en realidad `datos_ajuste` no estaba modelado, el constraint `marc_ajuste_requiere_original` bloqueaba el sub-tipo `creacion`, y la tabla append-only no permite UPDATE posterior al INSERT |
