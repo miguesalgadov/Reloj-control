@@ -4,7 +4,8 @@ import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { getISODay, getDaysInMonth } from 'date-fns';
 import { ReportesRepository, TrabajadorPeriodoRow, JornadaPeriodoRow, MarcacionPeriodoRow } from './reportes.repository';
 import { evaluarJornadaDia } from '../jornada/evaluator/evaluador';
-import { ConfiguracionJornada, JornadaPactadaVigente, MarcacionEvaluable } from '../jornada/types';
+import { obtenerMarcacionesEfectivas, MarcacionConDatos } from '../jornada/evaluator/marcaciones-efectivas';
+import { ConfiguracionJornada, JornadaPactadaVigente } from '../jornada/types';
 import type { ParamsReporteDto } from './dto/params-reporte.dto';
 import type { FiltrosReporteDto } from './dto/filtros-reporte.dto';
 
@@ -104,8 +105,15 @@ function getJornadaForDay(
   };
 }
 
-function toMarcacionEvaluable(r: MarcacionPeriodoRow): MarcacionEvaluable {
-  return { id: r.id, tipo: r.tipo, timestampUtc: r.timestamp_utc, dentroGeocerca: r.dentro_geocerca };
+function toMarcacionConDatos(r: MarcacionPeriodoRow): MarcacionConDatos {
+  return {
+    id: r.id,
+    tipo: r.tipo,
+    timestampUtc: r.timestamp_utc,
+    dentroGeocerca: r.dentro_geocerca,
+    marcacionOriginalId: r.marcacion_original_id ?? null,
+    datosAjuste: r.datos_ajuste ?? null,
+  };
 }
 
 // ─── Tipos de salida ─────────────────────────────────────────────────────────
@@ -189,7 +197,8 @@ export class ReportesService {
         }
 
         const jornada = getJornadaForDay(trab, fechaStr, jornadasPorContrato);
-        const marcDia = (marcacionesPorTrab.get(trab.id)?.get(fechaStr) ?? []).map(toMarcacionEvaluable);
+        const marcDiaRaw = (marcacionesPorTrab.get(trab.id)?.get(fechaStr) ?? []).map(toMarcacionConDatos);
+        const marcDia = obtenerMarcacionesEfectivas(marcDiaRaw);
         const resultado = evaluarJornadaDia(marcDia, jornada, config, fechaStr, ahora);
 
         const horasExt = resultado.atraso !== null && !resultado.inasistencia.inasistencia

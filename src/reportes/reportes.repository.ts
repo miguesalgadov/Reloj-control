@@ -40,6 +40,8 @@ export interface MarcacionPeriodoRow {
   tipo: 'entrada' | 'salida' | 'inicio_colacion' | 'fin_colacion' | 'ajuste';
   timestamp_utc: Date;
   dentro_geocerca: boolean | null;
+  marcacion_original_id?: string | null;
+  datos_ajuste?: { tipo_ajuste?: 'creacion' | 'correccion' | 'anulacion' } | null;
 }
 
 export interface CentroRow {
@@ -158,7 +160,8 @@ export class ReportesRepository {
     db: PoolClient,
   ): Promise<MarcacionPeriodoRow[]> {
     const { rows } = await db.query<MarcacionPeriodoRow>(
-      `SELECT id, trabajador_id, tipo, timestamp_utc, dentro_geocerca
+      `SELECT id, trabajador_id, tipo, timestamp_utc, dentro_geocerca,
+              marcacion_original_id, datos_ajuste
          FROM rc.marcaciones
         WHERE timestamp_utc >= $1::timestamptz
           AND timestamp_utc <  $2::timestamptz

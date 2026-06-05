@@ -242,6 +242,65 @@ describe('Reportes (e2e)', () => {
     }
   });
 
+  // ─── [aju-11] Ajuste correccion → reporte refleja hora corregida ─────────
+
+  it('[aju-11] correccion de ajuste → reporte refleja hora corregida (sin atraso)', async () => {
+    const hoy = new Date();
+    const año = hoy.getFullYear();
+    const mes = hoy.getMonth() + 1;
+    const mesStr = String(mes).padStart(2, '0');
+
+    // Crear ajuste tipo creacion con entrada atrasada (08:30 = 20 min tarde)
+    // Usamos día 1 del mes actual — garantizamos que sea laborable (se llama
+    // desde reportes, y si no es laborable el test lo detecta igualmente)
+    const tsAtrasada = `${año}-${mesStr}-01T08:30:00`;
+    const resCreacion = await request(httpServer)
+      .post('/api/ajustes')
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+      .send({
+        tipo_ajuste: 'creacion', trabajador_id: JUAN_TRAB_ID,
+        motivo: 'Test corrección: entrada creada administrativamente con hora incorrecta.',
+        tipo_marcacion: 'entrada', timestamp_local: tsAtrasada,
+        confirmacion_mes_cerrado: false,
+      });
+    expect(resCreacion.status).toBe(201);
+    const idOriginal = resCreacion.body.id;
+
+    // Sin corrección: marcación muestra 08:30
+    const res1 = await request(httpServer)
+      .get(`/api/reportes/asistencia/${año}/${mes}?trabajador_id=${JUAN_TRAB_ID}`)
+      .set('Authorization', `Bearer ${tokenAdmin}`);
+    expect(res1.status).toBe(200);
+    const dia1 = res1.body.trabajadores[0]?.dias.find((d: any) => d.fecha === `${año}-${mesStr}-01`);
+    if (dia1?.es_laborable && dia1.marcaciones.length > 0) {
+      expect(dia1.marcaciones[0].hora_local).toBe('08:30');
+    }
+
+    // Crear correccion a 07:55 (antes del inicio → atraso_minutos = 0)
+    const tsCorregida = `${año}-${mesStr}-01T07:55:00`;
+    const resCorreccion = await request(httpServer)
+      .post('/api/ajustes')
+      .set('Authorization', `Bearer ${tokenAdmin}`)
+      .send({
+        tipo_ajuste: 'correccion', trabajador_id: JUAN_TRAB_ID,
+        marcacion_original_id: idOriginal,
+        motivo: 'Corrección de hora de entrada por error en el registro administrativo.',
+        timestamp_local_corregido: tsCorregida,
+      });
+    expect(resCorreccion.status).toBe(201);
+
+    // Con corrección: la marcación ahora muestra 07:55 y atraso_minutos = 0
+    const res2 = await request(httpServer)
+      .get(`/api/reportes/asistencia/${año}/${mes}?trabajador_id=${JUAN_TRAB_ID}`)
+      .set('Authorization', `Bearer ${tokenAdmin}`);
+    expect(res2.status).toBe(200);
+    const dia2 = res2.body.trabajadores[0]?.dias.find((d: any) => d.fecha === `${año}-${mesStr}-01`);
+    if (dia2?.es_laborable && dia2.marcaciones.length > 0) {
+      expect(dia2.marcaciones[0].hora_local).toBe('07:55');
+      expect(dia2.evaluacion.atraso_minutos).toBe(0);
+    }
+  });
+
   // ─── Aislamiento RLS ─────────────────────────────────────────────────────
 
   it('[rep-6] Admin_A no ve trabajadores de tenant B en asistencia', async () => {

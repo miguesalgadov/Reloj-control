@@ -146,10 +146,53 @@ describe('ReportesService — cálculo de días', () => {
     repo.marcacionesDelPeriodo.mockResolvedValue(marcaciones);
     const result = await service.asistencia({ anio: 2026, mes: 6 }, {}, mockDb());
     const trab = result.trabajadores[0];
-    // Al menos 2 días con entrada
     expect(trab.totales_mes.dias_trabajados).toBeGreaterThanOrEqual(2);
-    // El día con atraso (m2) suma minutos de atraso
     expect(trab.totales_mes.atrasos_total_minutos).toBeGreaterThan(0);
+  });
+
+  it('ajuste tipo correccion → reporte usa hora corregida', async () => {
+    // Entrada original: 08:30 CLT (12:30 UTC) — 30 min tarde → atraso_minutos = 30
+    // Corrección a:     07:55 CLT (11:55 UTC) — antes del inicio → atraso_minutos = 0
+    const marcaciones: MarcacionPeriodoRow[] = [
+      {
+        id: 'm1', trabajador_id: 'trab-1', tipo: 'entrada',
+        timestamp_utc: new Date('2026-06-01T12:30:00Z'),
+        dentro_geocerca: true, marcacion_original_id: null, datos_ajuste: null,
+      },
+      {
+        id: 'a1', trabajador_id: 'trab-1', tipo: 'ajuste',
+        timestamp_utc: new Date('2026-06-01T11:55:00Z'),  // 07:55 CLT
+        dentro_geocerca: true, marcacion_original_id: 'm1',
+        datos_ajuste: { tipo_ajuste: 'correccion' },
+      },
+    ];
+    repo.marcacionesDelPeriodo.mockResolvedValue(marcaciones);
+    const result = await service.asistencia({ anio: 2026, mes: 6 }, {}, mockDb());
+    const dia = result.trabajadores[0].dias.find(d => d.fecha === '2026-06-01');
+    expect(dia?.evaluacion.atraso_minutos).toBe(0);      // corregida a antes de inicio
+    expect(dia?.evaluacion.inasistencia).toBe(false);
+    expect(dia?.marcaciones[0]?.hora_local).toBe('07:55'); // hora corregida reflejada
+  });
+
+  it('ajuste tipo anulacion → reporte marca inasistencia el día anulado', async () => {
+    // Entrada en 08:00, luego anulada → sin marcación efectiva → inasistencia
+    const marcaciones: MarcacionPeriodoRow[] = [
+      {
+        id: 'm1', trabajador_id: 'trab-1', tipo: 'entrada',
+        timestamp_utc: new Date('2026-06-02T12:00:00Z'),
+        dentro_geocerca: true, marcacion_original_id: null, datos_ajuste: null,
+      },
+      {
+        id: 'a1', trabajador_id: 'trab-1', tipo: 'ajuste',
+        timestamp_utc: new Date('2026-06-02T12:00:00Z'),
+        dentro_geocerca: null, marcacion_original_id: 'm1',
+        datos_ajuste: { tipo_ajuste: 'anulacion' },
+      },
+    ];
+    repo.marcacionesDelPeriodo.mockResolvedValue(marcaciones);
+    const result = await service.asistencia({ anio: 2026, mes: 6 }, {}, mockDb());
+    const dia = result.trabajadores[0].dias.find(d => d.fecha === '2026-06-02');
+    expect(dia?.evaluacion.inasistencia).toBe(true);
   });
 });
 
